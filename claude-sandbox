@@ -151,4 +151,5 @@ fi
 # shellcheck disable=SC2064
 trap "rm -f '${WRITE_PROFILE_FILE}'" EXIT
 
+export IS_SANDBOX=1
 sandbox-exec -f "${WRITE_PROFILE_FILE}" -D "TARGET_DIR=${TARGET_DIR}" -D "TMP_DIR=/tmp" -D "HOME_DIR=${HOME}" -D "CACHE_DIR=${HOME}/.cache" "${POSITIONAL_ARGS[@]}"
