@@ -33,6 +33,9 @@
   (subpath "/System")
   (subpath "/Library/Developer/CommandLineTools")
   (subpath (string-append (param "HOME_DIR") "/.local/bin"))
+  ;; Browser — required for `open` command / LaunchServices to launch
+  ;; the browser (MCP OAuth flows, etc.)
+  (subpath "/Applications/Safari.app")
   )
 
 ;; === IMPORTANT === MODIFY this section to include ALL directories leading to claude workdir ===
@@ -53,11 +56,16 @@
     (literal (string-append (param "HOME_DIR") "/.CFUserTextEncoding"))
     ;; Bun/npm module resolution walks up to HOME looking for package.json
     (literal (string-append (param "HOME_DIR") "/package.json"))
+    ;; User preferences — needed by `open` command to resolve the default browser
+    (subpath (string-append (param "HOME_DIR") "/Library/Preferences"))
+    (literal "/Library/Preferences/.GlobalPreferences.plist")
 )
 
 ;; Allow process execution and forking (children inherit policy)
 (allow process-exec)
 (allow process-fork)
+;; Allow `open` command to launch URLs/apps via LaunchServices (MCP OAuth flows)
+(allow lsopen)
 ;; Kernel control sockets — required by Node.js/Playwright for local network interface
 ;; discovery and browser process communication
 (allow system-socket)
@@ -152,6 +160,12 @@
     ;; Semgrep configuration and cache
     (subpath (string-append (param "HOME_DIR") "/.semgrep"))
 
+    ;; .dotnet
+    (subpath (string-append (param "HOME_DIR") "/.dotnet"))
+
+    ;; .nuget
+    (subpath (string-append (param "HOME_DIR") "/.nuget"))
+
     ;; Automounter — required for path resolution (without this, accessing
     ;; paths like HOME_DIR can fail with EPERM)
     (literal "/dev/autofs_nowait")
@@ -213,13 +227,45 @@
   (global-name "com.apple.bsd.dirhelper")
   (global-name "com.apple.securityd.xpc")
   (global-name "com.apple.coreservices.launchservicesd")
+  ;; Browser / `open` command — required for MCP OAuth flows to open a browser
+  (global-name "com.apple.CoreServices.coreservicesd")
+  (global-name "com.apple.coreservices.quarantine-resolver")
+  (global-name "com.apple.DiskArbitration.diskarbitrationd")
+  (global-name "com.apple.lsd.modifydb")
 )
 
 ;; The following is required to get Claude API Key from macOS Keychain (if logged in via /login)
+;; and for MCP OAuth authentication flows that use the `security` command.
+;; The security command needs: directory traversal to ~/Library/Keychains,
+;; the keychain DB and its lock files (.fl*), the system keychain, and security prefs.
 
-;; Specifically allow login keychain
+;; Allow traversal to ~/Library (metadata only, does not expose contents)
+(allow file-read-metadata
+    (literal (string-append (param "HOME_DIR") "/Library"))
+)
+
+;; Allow full read of ~/Library/Keychains (login keychain, lock files, etc.)
 (allow file-read*
-    (literal (string-append (param "HOME_DIR") "/Library/Keychains/login.keychain-db"))
+    (subpath (string-append (param "HOME_DIR") "/Library/Keychains"))
+)
+
+;; System keychain and security preferences (read-only)
+(allow file-read-metadata
+    (literal "/Library")
+    (literal "/Library/Keychains")
+)
+(allow file-read*
+    (literal "/Library/Keychains/System.keychain")
+    (literal "/Library/Preferences/com.apple.security.plist")
+)
+;; Keychain change notifications — security command needs to create this shared
+;; memory segment when writing tokens (MCP OAuth, Claude credentials)
+(allow ipc-posix-shm-write-create ipc-posix-shm-read-data ipc-posix-shm-write-data
+    (ipc-posix-name "com.apple.AppleDatabaseChanged")
+)
+;; /private is needed for keychain path resolution
+(allow file-read-metadata
+    (literal "/private")
 )
 
 ;; Critical: Allow communication with securityd (keychain daemon)
