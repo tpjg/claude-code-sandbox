@@ -104,6 +104,8 @@
     (sysctl-name "hw.physicalcpu_max")
     (sysctl-name "hw.tbfrequency_compat")
     (sysctl-name "kern.hostname")
+    ;; .NET IPGlobalProperties.DomainName / getdomainname(3)
+    (sysctl-name "kern.nisdomainname")
     (sysctl-name "kern.maxfilesperproc")
     (sysctl-name "kern.osproductversion")
     (sysctl-name "kern.osrelease")
@@ -165,6 +167,9 @@
 
     ;; .nuget
     (subpath (string-append (param "HOME_DIR") "/.nuget"))
+
+    ;; Microsoft DeveloperTools (.NET)
+    (subpath (string-append (param "HOME_DIR") "/Library/Application Support/Microsoft/DeveloperTools"))
 
     ;; Automounter — required for path resolution (without this, accessing
     ;; paths like HOME_DIR can fail with EPERM)
